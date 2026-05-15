@@ -1,67 +1,127 @@
-# doomgeneric
-The purpose of doomgeneric is to make porting Doom easier.
-Of course Doom is already portable but with doomgeneric it is possible with just a few functions.
+# DoomGeneric on STM32MP1 (Wayland SHM backend)
 
-To try it you will need a WAD file (game data). If you don't own the game, shareware version is freely available (doom1.wad).
+Ce fork cible **STM32MP1 / OpenSTLinux** avec un backend Wayland minimal en **SHM** (sans SDL, sans EGL, sans OpenGL).
 
-# porting
-Create a file named doomgeneric_yourplatform.c and just implement these functions to suit your platform.
-* DG_Init
-* DG_DrawFrame
-* DG_SleepMs
-* DG_GetTicksMs
-* DG_GetKey
+## Objectif
 
-|Functions            |Description|
-|---------------------|-----------|
-|DG_Init              |Initialize your platfrom (create window, framebuffer, etc...).
-|DG_DrawFrame         |Frame is ready in DG_ScreenBuffer. Copy it to your platform's screen.
-|DG_SleepMs           |Sleep in milliseconds.
-|DG_GetTicksMs        |The ticks passed since launch in milliseconds.
-|DG_GetKey            |Provide keyboard events.
-|DG_SetWindowTitle    |Not required. This is for setting the window title as Doom sets this from WAD file.
+Faire tourner Doom sur Weston/Wayland avec un écran 480x272 en envoyant un framebuffer partagé (`wl_shm`) au compositeur.
 
-### main loop
-At start, call doomgeneric_Create().
+## Prérequis
 
-In a loop, call doomgeneric_Tick().
+### Machine de build (WSL/Linux)
 
-In simplest form:
-```
-int main(int argc, char **argv)
-{
-    doomgeneric_Create(argc, argv);
+- Toolchain cross ARM: `arm-linux-gnueabihf-gcc`
+- Sysroot STM32 disponible (exemple: `$HOME/stm32-sysroot`)
+- `make`, `scp`
 
-    while (1)
-    {
-        doomgeneric_Tick();
-    }
-    
-    return 0;
-}
+### Cible STM32MP1
+
+- OpenSTLinux
+- Weston lancé en session utilisateur `weston`
+- Socket Wayland active (souvent `wayland-1`)
+- Un fichier WAD (Freedoom ou Doom)
+
+## Build (cross-compilation)
+
+Depuis le dossier `doomgeneric/` du projet:
+
+```bash
+make -f Makefile.wayland_shm \
+  CC=arm-linux-gnueabihf-gcc \
+  CFLAGS="-DDOOMGENERIC_RESX=320 -DDOOMGENERIC_RESY=200 -I$HOME/stm32-sysroot/usr/include -I$HOME/stm32-sysroot/usr/include/arm-linux-gnueabihf" \
+  LDFLAGS="-L$HOME/stm32-sysroot/usr/lib/arm-linux-gnueabihf -Wl,-rpath-link,$HOME/stm32-sysroot/usr/lib/arm-linux-gnueabihf" \
+  LIBS="-lwayland-client -lffi"
 ```
 
-# sound
-Sound is much harder to implement! If you need sound, take a look at SDL port. It fully supports sound and music! Where to start? Define FEATURE_SOUND, assign DG_sound_module and DG_music_module.
+Le binaire généré est `doomgeneric`.
 
-# platforms
-Ported platforms include Windows, X11, SDL, emscripten. Just look at (doomgeneric_win.c, doomgeneric_xlib.c, doomgeneric_sdl.c).
-Makefiles provided for each platform.
+## Copie vers la carte
 
-## emscripten
-You can try it directly here:
-https://ozkl.github.io/doomgeneric/
+Exemple:
 
-emscripten port is based on SDL port, so it supports sound and music! For music, timidity backend is used.
+```bash
+scp doomgeneric weston@172.19.165.127:/tmp/
+```
 
-## Windows
-![Windows](screenshots/windows.png)
+## Installation de Freedoom (IWAD)
 
-## X11 - Ubuntu
-![Ubuntu](screenshots/ubuntu.png)
+### Option A (recommandée): installer via paquets OpenSTLinux
 
-## X11 - FreeBSD
-![FreeBSD](screenshots/freebsd.png)
+Sur la carte:
 
-## SDL
-![SDL](screenshots/sdl.png)
+```bash
+su -
+opkg update
+opkg install freedoom
+```
+
+Ensuite, repérer les IWAD installés (chemin variable selon image):
+
+```bash
+find / -type f \( -name "freedoom*.wad" -o -name "doom*.wad" \) 2>/dev/null
+```
+
+### Option B: copier un WAD depuis le PC
+
+Sur votre machine de dev, téléchargez un IWAD Freedoom (Phase 1, ex: `freedoom1.wad`) depuis le projet officiel:
+
+- https://freedoom.github.io/
+
+Puis copiez-le sur la carte:
+
+```bash
+scp freedoom1.wad weston@<IP_CARTE>:/home/weston/
+```
+
+## Lancement sur STM32MP1
+
+Connectez-vous en utilisateur `weston` (ou basculez-y), puis:
+
+```bash
+su - weston
+export XDG_RUNTIME_DIR=/run/user/1000
+export WAYLAND_DISPLAY=wayland-1
+cd /tmp
+./doomgeneric -iwad /home/weston/freedoom1.wad
+```
+
+Si tout est OK, vous verrez des logs du type:
+
+- `Scaling: Doom 320x200 -> 435x272, offset 22,0`
+- `Wayland SHM init OK: 480x272`
+
+## Vérifications utiles
+
+Wayland actif:
+
+```bash
+find /run/user -name "wayland-*"
+```
+
+Weston actif:
+
+```bash
+ps aux | grep weston
+```
+
+Logs Weston:
+
+```bash
+tail -f /home/weston/weston.log
+```
+
+## Dépannage
+
+- Écran noir au démarrage:
+  - Vérifier `XDG_RUNTIME_DIR` et `WAYLAND_DISPLAY`
+  - Vérifier que le socket existe bien (`wayland-1` vs `wayland-0`)
+- Erreurs de link au build (`-lwayland-client`, `-lffi`):
+  - Vérifier `LDFLAGS` et le sysroot
+- Pas d'affichage via SDL/EGL sur certaines configs:
+  - Ce backend SHM n'utilise ni EGL ni OpenGL
+
+## Notes
+
+- Résolution logique Doom recommandée: `320x200`
+- Fenêtre cible: `480x272` avec upscaling nearest-neighbor
+- Ce port est volontairement minimal et orienté robustesse sur Weston
