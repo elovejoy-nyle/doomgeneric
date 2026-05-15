@@ -1,29 +1,29 @@
 # DoomGeneric on STM32MP1 (Wayland SHM backend)
 
-Ce fork cible **STM32MP1 / OpenSTLinux** avec un backend Wayland minimal en **SHM** (sans SDL, sans EGL, sans OpenGL).
+This fork targets **STM32MP1 / OpenSTLinux** with a minimal Wayland **SHM** backend (no SDL, no EGL, no OpenGL).
 
-## Objectif
+## Goal
 
-Faire tourner Doom sur Weston/Wayland avec un écran 480x272 en envoyant un framebuffer partagé (`wl_shm`) au compositeur.
+Run Doom on Weston/Wayland with a 480x272 display by pushing a shared-memory framebuffer (`wl_shm`) to the compositor.
 
-## Prérequis
+## Prerequisites
 
-### Machine de build (WSL/Linux)
+### Build machine (WSL/Linux)
 
-- Toolchain cross ARM: `arm-linux-gnueabihf-gcc`
-- Sysroot STM32 disponible (exemple: `$HOME/stm32-sysroot`)
+- ARM cross toolchain: `arm-linux-gnueabihf-gcc`
+- STM32 sysroot available (example: `$HOME/stm32-sysroot`)
 - `make`, `scp`
 
-### Cible STM32MP1
+### STM32MP1 target
 
 - OpenSTLinux
-- Weston lancé en session utilisateur `weston`
-- Socket Wayland active (souvent `wayland-1`)
-- Un fichier WAD (Freedoom ou Doom)
+- Weston running in user session `weston`
+- Active Wayland socket (often `wayland-1`)
+- A WAD file (Freedoom or Doom)
 
 ## Build (cross-compilation)
 
-Depuis le dossier `doomgeneric/` du projet:
+From the project's `doomgeneric/` directory:
 
 ```bash
 make -f Makefile.wayland_shm \
@@ -33,21 +33,21 @@ make -f Makefile.wayland_shm \
   LIBS="-lwayland-client -lffi"
 ```
 
-Le binaire généré est `doomgeneric`.
+The generated binary is `doomgeneric`.
 
-## Copie vers la carte
+## Copy to the board
 
-Exemple:
+Example:
 
 ```bash
 scp doomgeneric weston@172.19.165.127:/tmp/
 ```
 
-## Installation de Freedoom (IWAD)
+## Install Freedoom (IWAD)
 
-### Option A (recommandée): installer via paquets OpenSTLinux
+### Option A (recommended): install from OpenSTLinux packages
 
-Sur la carte:
+On the board:
 
 ```bash
 su -
@@ -55,27 +55,27 @@ opkg update
 opkg install freedoom
 ```
 
-Ensuite, repérer les IWAD installés (chemin variable selon image):
+Then locate installed IWAD files (path may vary by image):
 
 ```bash
 find / -type f \( -name "freedoom*.wad" -o -name "doom*.wad" \) 2>/dev/null
 ```
 
-### Option B: copier un WAD depuis le PC
+### Option B: copy a WAD from your PC
 
-Sur votre machine de dev, téléchargez un IWAD Freedoom (Phase 1, ex: `freedoom1.wad`) depuis le projet officiel:
+On your dev machine, download a Freedoom IWAD (Phase 1, e.g. `freedoom1.wad`) from the official project:
 
 - https://freedoom.github.io/
 
-Puis copiez-le sur la carte:
+Then copy it to the board:
 
 ```bash
-scp freedoom1.wad weston@<IP_CARTE>:/home/weston/
+scp freedoom1.wad weston@<BOARD_IP>:/home/weston/
 ```
 
-## Lancement sur STM32MP1
+## Run on STM32MP1
 
-Connectez-vous en utilisateur `weston` (ou basculez-y), puis:
+Log in as `weston` user (or switch to it), then:
 
 ```bash
 su - weston
@@ -85,43 +85,43 @@ cd /tmp
 ./doomgeneric -iwad /home/weston/freedoom1.wad
 ```
 
-Si tout est OK, vous verrez des logs du type:
+If everything is OK, you should see logs like:
 
 - `Scaling: Doom 320x200 -> 435x272, offset 22,0`
 - `Wayland SHM init OK: 480x272`
 
-## Vérifications utiles
+## Useful checks
 
-Wayland actif:
+Wayland active:
 
 ```bash
 find /run/user -name "wayland-*"
 ```
 
-Weston actif:
+Weston running:
 
 ```bash
 ps aux | grep weston
 ```
 
-Logs Weston:
+Weston logs:
 
 ```bash
 tail -f /home/weston/weston.log
 ```
 
-## Dépannage
+## Troubleshooting
 
-- Écran noir au démarrage:
-  - Vérifier `XDG_RUNTIME_DIR` et `WAYLAND_DISPLAY`
-  - Vérifier que le socket existe bien (`wayland-1` vs `wayland-0`)
-- Erreurs de link au build (`-lwayland-client`, `-lffi`):
-  - Vérifier `LDFLAGS` et le sysroot
-- Pas d'affichage via SDL/EGL sur certaines configs:
-  - Ce backend SHM n'utilise ni EGL ni OpenGL
+- Black screen at startup:
+  - Check `XDG_RUNTIME_DIR` and `WAYLAND_DISPLAY`
+  - Verify socket name (`wayland-1` vs `wayland-0`)
+- Linker errors during build (`-lwayland-client`, `-lffi`):
+  - Check `LDFLAGS` and sysroot paths
+- SDL/EGL rendering issues on some setups:
+  - This SHM backend does not use EGL or OpenGL
 
 ## Notes
 
-- Résolution logique Doom recommandée: `320x200`
-- Fenêtre cible: `480x272` avec upscaling nearest-neighbor
-- Ce port est volontairement minimal et orienté robustesse sur Weston
+- Recommended logical Doom resolution: `320x200`
+- Target window: `480x272` with nearest-neighbor upscaling
+- This port is intentionally minimal and focused on Weston robustness
