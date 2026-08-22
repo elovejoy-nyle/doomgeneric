@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=DoomGeneric
+Comment=Run DoomGeneric (Wayland SHM)
+Exec=/usr/local/bin/run-doomgeneric.sh
+Icon=applications-games
+Terminal=true
+Type=Application
+Categories=Game;
