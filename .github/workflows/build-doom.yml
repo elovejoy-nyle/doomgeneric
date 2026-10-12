@@ -87,6 +87,7 @@ jobs:
         env:
           TARGET_NAME: ${{ matrix.target }}
         run: |
+          sudo chown -R "$(id -u):$(id -g)" source/dist
           chmod -R a+rX source/dist
           tar -czf "$TARGET_NAME.tar.gz" -C source/dist "$TARGET_NAME"
 
